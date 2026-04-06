@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="新家 — 在自己的地块上建造多栋房子，选择现代或古代风格，装修每一个房间！">
+  <!-- WeChat / Open Graph 分享标签 -->
+  <meta property="og:title" content="新家 NewHome — 2.5D装修经营游戏">
+  <meta property="og:description" content="种田采集、制造家具、建造房子、自由装修！快来看看我的新家~">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><rect fill='%232d5a27' width='200' height='200'/><text x='100' y='110' text-anchor='middle' font-size='80'>🏠</text></svg>">
+  <title>新家 NewHome - 装修经营游戏</title>
+  <style>
+    /* ===== Reset & Base ===== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: 'Microsoft YaHei', sans-serif;
+      color: #fff;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ===== Game Container ===== */
+    #game-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    /* ===== Canvas ===== */
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* ===== UI Layer ===== */
+    #ui-layer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #ui-layer > * {
+      pointer-events: auto;
+    }
+
+    /* ===== HUD Top Bar ===== */
+    #hud {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 48px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.5) 100%);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 13px;
+      gap: 10px;
+      z-index: 10;
+      user-select: none;
+    }
+    .hud-item {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      white-space: nowrap;
+    }
+    .hud-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+    .hud-value {
+      font-size: 13px;
+      font-weight: bold;
+      color: #f0f0f0;
+    }
+
+    /* Level + Exp group */
+    .hud-level-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hud-exp-bar-outer {
+      width: 80px;
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .hud-exp-bar-inner {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4ecdc4, #44b09e);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 6px rgba(78,205,196,0.4);
+      animation: expGlow 2s ease-in-out infinite;
+    }
+    @keyframes expGlow {
+      0%, 100% { box-shadow: 0 0 4px rgba(78,205,196,0.3); }
+      50% { box-shadow: 0 0 8px rgba(78,205,196,0.6); }
+    }
+
+    /* HUD value change animation */
+    .hud-value {
+      transition: transform 0.2s ease;
+    }
+    .hud-value.bump {
+      animation: hudBump 0.5s ease;
+    }
+    @keyframes hudBump {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.2); color: #ffd700; }
+      100% { transform: scale(1); }
+    }
+
+    /* Level badge pulse on level up */
+    .hud-level-pulse {
+      animation: levelPulse 0.6s ease;
+    }
+    @keyframes levelPulse {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.3); color: #ffd700; }
+      100% { transform: scale(1); }
+    }
+
+    /* HUD spacer pushes right-side items */
+    .hud-spacer {
+      flex: 1;
+    }
+
+    /* ===== Bottom Navigation Bar ===== */
+    #bottom-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.55) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 4px;
+      z-index: 10;
+      user-select: none;
+    }
+    .bottom-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      width: 60px;
+      height: 50px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: #aaa;
+      font-size: 11px;
+      font-family: 'Microsoft YaHei', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .bottom-btn .btn-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+    .bottom-btn .btn-label {
+      font-size: 11px;
+    }
+    .bottom-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: #ddd;
+    }
+    .bottom-btn.active {
+      color: #4ecdc4;
+      border-color: rgba(78,205,196,0.4);
+      background: rgba(78,205,196,0.1);
+    }
+
+    /* ===== Overlay / Backdrop ===== */
+    .panel-overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 19;
+    }
+    .panel-overlay.visible {
+      display: block;
+    }
+
+    /* ===== Common Panel Styles ===== */
+    .panel {
+      display: none;
+      position: absolute;
+      z-index: 20;
+      color: #fff;
+    }
+    .panel-centered {
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .panel-card {
+      background: rgba(20,20,40,0.95);
+      border: 1px solid #555;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .panel-title {
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px; right: 14px;
+      font-size: 22px;
+      color: #888;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+      z-index: 1;
+    }
+    .close-btn:hover {
+      color: #fff;
+    }
+
+    /* ===== Bag Panel ===== */
+    #bag-panel {
+      width: 340px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    #bag-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    #bag-panel::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+    .bag-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .bag-slot {
+      aspect-ratio: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid #444;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .bag-slot:hover {
+      border-color: #4ecdc4;
+      background: rgba(78,205,196,0.08);
+    }
+    .bag-slot .slot-icon {
+      font-size: 26px;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .bag-slot .slot-name {
+      font-size: 10px;
+      color: #ccc;
+      text-align: center;
+      line-height: 1.2;
+    }
+    .bag-slot .slot-count {
+      position: absolute;
+      bottom: 3px; right: 5px;
+      font-size: 10px;
+      color: #aaa;
+      font-weight: bold;
+    }
+
+    /* ===== Furniture Panel (bottom, room scene) ===== */
+    #furniture-panel {
+      position: absolute;
+      bottom: 68px; left: 8px; right: 8px;
+      border-radius: 12px;
+      z-index: 15;
+    }
+    #furniture-panel .panel-card {
+      padding: 12px;
+    }
+    #furniture-panel .furniture-title {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+    .furniture-scroll {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .furniture-scroll::-webkit-scrollbar {
+      height: 3px;
+    }
+    .furniture-scroll::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+    .furniture-item {
+      flex-shrink: 0;
+      width: 70px;
+      height: 78px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid #444;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .furniture-item:hover {
+      border-color: #4ecdc4;
+    }
+    .furniture-item.selected {
+      border-color: #ff6b6b;
+      background: rgba(255,107,107,0.15);
+    }
+    .furniture-item .fi-icon {
+      font-size: 24px;
+      line-height: 1;
+    }
+    .furniture-item .fi-name {
+      font-size: 10px;
+      color: #ccc;
+    }
+    .furniture-item .fi-prosperity {
+      font-size: 9px;
+      color: #4ecdc4;
+    }
+
+    /* ===== Workshop Panel ===== */
+    #workshop-panel {
+      width: 370px;
+      max-height: 560px;
+      overflow-y: auto;
+    }
+    #workshop-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    #workshop-panel::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+
+    /* Blueprint grid */
+    .blueprint-section-title {
+      font-size: 14px;
+      color: #aaa;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #333;
+    }
+    .blueprint-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .blueprint-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .blueprint-card:hover {
+      border-color: #4ecdc4;
+    }
+    .blueprint-card .bp-icon {
+      font-size: 28px;
+      line-height: 1;
+    }
+    .blueprint-card .bp-name {
+      font-size: 12px;
+      font-weight: bold;
+      color: #eee;
+    }
+    .blueprint-card .bp-recipe {
+      font-size: 10px;
+      color: #aaa;
+      line-height: 1.3;
+    }
+    .blueprint-card .bp-time {
+      font-size: 10px;
+      color: #888;
+    }
+    .blueprint-card .bp-craft-btn {
+      margin-top: 4px;
+      padding: 4px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #4ecdc4;
+      color: #1a1a2e;
+      font-size: 11px;
+      font-weight: bold;
+      font-family: 'Microsoft YaHei', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .blueprint-card .bp-craft-btn:hover {
+      background: #3dbdb5;
+    }
+    .blueprint-card .bp-craft-btn:disabled {
+      background: #555;
+      color: #888;
+      cursor: not-allowed;
+    }
+
+    /* Craft queue */
+    .craft-queue-title {
+      font-size: 14px;
+      color: #aaa;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #333;
+    }
+    .craft-queue {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .craft-slot {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .craft-slot .cs-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    .craft-slot .cs-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .craft-slot .cs-name {
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .craft-slot .cs-progress-outer {
+      width: 100%;
+      height: 6px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .craft-slot .cs-progress-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #4ecdc4, #44b09e);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .craft-slot .cs-time {
+      font-size: 10px;
+      color: #888;
+      margin-top: 2px;
+    }
+    .craft-slot .cs-collect-btn {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      background: #ffd93d;
+      color: #1a1a2e;
+      font-size: 11px;
+      font-weight: bold;
+      font-family: 'Microsoft YaHei', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .craft-slot .cs-collect-btn:hover {
+      background: #f0ca2c;
+    }
+    .craft-slot .cs-collect-btn:disabled {
+      background: #555;
+      color: #888;
+      cursor: not-allowed;
+    }
+    .craft-slot-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 56px;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed #444;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #555;
+    }
+
+    /* ===== Order Panel ===== */
+    #order-panel {
+      width: 370px;
+      max-height: 560px;
+      overflow-y: auto;
+    }
+    #order-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    #order-panel::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+    .order-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .order-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid #444;
+      border-radius: 10px;
+      padding: 14px;
+      transition: border-color 0.2s;
+    }
+    .order-card:hover {
+      border-color: #555;
+    }
+    .order-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .order-npc-avatar {
+      width: 36px;
+      height: 36px;
+      background: rgba(78,205,196,0.15);
+      border: 1px solid #4ecdc4;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .order-npc-info {
+      flex: 1;
+    }
+    .order-npc-name {
+      font-size: 13px;
+      font-weight: bold;
+      color: #eee;
+    }
+    .order-desc {
+      font-size: 11px;
+      color: #999;
+      margin-top: 1px;
+    }
+    .order-requirements {
+      margin-bottom: 8px;
+    }
+    .order-req-title {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .order-req-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .order-req-item {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      padding: 3px 8px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+    }
+    .order-req-item .req-icon {
+      font-size: 14px;
+    }
+    .order-req-item .req-status {
+      font-size: 12px;
+    }
+    .order-req-item .req-status.done {
+      color: #4ecdc4;
+    }
+    .order-req-item .req-status.missing {
+      color: #ff6b6b;
+    }
+    .order-rewards {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+    .order-rewards-label {
+      color: #888;
+      font-size: 11px;
+    }
+    .order-reward-item {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      color: #ffd93d;
+    }
+    .order-complete-btn {
+      width: 100%;
+      padding: 8px 0;
+      border: none;
+      border-radius: 8px;
+      background: #4ecdc4;
+      color: #1a1a2e;
+      font-size: 13px;
+      font-weight: bold;
+      font-family: 'Microsoft YaHei', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .order-complete-btn:hover {
+      background: #3dbdb5;
+    }
+    .order-complete-btn:disabled {
+      background: #444;
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    /* ===== Level-Up Popup ===== */
+    #levelup-popup {
+      width: 300px;
+      text-align: center;
+    }
+    #levelup-popup .panel-card {
+      padding: 30px 24px;
+      border-color: #4ecdc4;
+    }
+    .levelup-star {
+      font-size: 48px;
+      line-height: 1;
+      margin-bottom: 8px;
+      animation: levelupBounce 0.6s ease;
+    }
+    @keyframes levelupBounce {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .levelup-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #ffd93d;
+      margin-bottom: 4px;
+    }
+    .levelup-subtitle {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 16px;
+    }
+    .levelup-unlocks-title {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+    }
+    .levelup-unlocks-list {
+      list-style: none;
+      margin-bottom: 20px;
+    }
+    .levelup-unlocks-list li {
+      font-size: 13px;
+      color: #4ecdc4;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .levelup-unlocks-list li:last-child {
+      border-bottom: none;
+    }
+    .levelup-confirm-btn {
+      padding: 10px 40px;
+      border: none;
+      border-radius: 8px;
+      background: #4ecdc4;
+      color: #1a1a2e;
+      font-size: 15px;
+      font-weight: bold;
+      font-family: 'Microsoft YaHei', sans-serif;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .levelup-confirm-btn:hover {
+      background: #3dbdb5;
+    }
+
+    /* ===== Toast Notification ===== */
+    .toast {
+      position: absolute;
+      top: 60px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,10,25,0.9);
+      color: #4ecdc4;
+      padding: 8px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(78,205,196,0.2);
+      font-size: 13px;
+      white-space: nowrap;
+      z-index: 100;
+      pointer-events: none;
+      animation: toastSlideIn 2.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    @keyframes toastSlideIn {
+      0%   { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(0.92); }
+      8%   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      75%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.95); }
+    }
+
+    /* ===== Button press feedback ===== */
+    .bottom-btn:active, .bp-craft-btn:active, .order-complete-btn:active,
+    .cs-collect-btn:active, .furniture-item:active, .levelup-confirm-btn:active {
+      transform: scale(0.94);
+      transition: transform 0.08s ease;
+    }
+
+    /* ===== Panel backdrop blur for modals ===== */
+    .panel-card {
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+  </style>
+  <script type="module" crossorigin src="/evan/assets/index-sjjC3yyE.js"></script>
+</head>
+<body>
+  <div id="game-container">
+    <!-- ===== Game Canvas ===== -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ===== UI Layer ===== -->
+    <div id="ui-layer" style="display:none;">
+
+      <!-- ===== HUD Top Bar ===== -->
+      <div id="hud">
+        <div class="hud-level-group">
+          <div class="hud-item">
+            <span class="hud-icon">⭐</span>
+            <span class="hud-value" id="hud-level">Lv.1</span>
+          </div>
+          <div class="hud-exp-bar-outer">
+            <div class="hud-exp-bar-inner" id="hud-exp-bar" style="width: 0%;"></div>
+          </div>
+        </div>
+        <div class="hud-spacer"></div>
+        <div class="hud-item">
+          <span class="hud-icon">🪙</span>
+          <span class="hud-value" id="hud-coins">100</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-icon">🎫</span>
+          <span class="hud-value" id="hud-adtickets">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-icon">🔧</span>
+          <span class="hud-value" id="hud-craft-tokens">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-icon">🏠</span>
+          <span class="hud-value" id="hud-prosperity">0</span>
+        </div>
+      </div>
+
+      <!-- ===== Bottom Navigation Bar ===== -->
+      <div id="bottom-bar">
+        <button class="bottom-btn active" id="btn-farm" data-scene="farm">
+          <span class="btn-icon">🌾</span>
+          <span class="btn-label">农田</span>
+        </button>
+        <button class="bottom-btn" id="btn-workshop" data-scene="workshop">
+          <span class="btn-icon">🔨</span>
+          <span class="btn-label">工坊</span>
+        </button>
+        <button class="bottom-btn" id="btn-room" data-scene="room">
+          <span class="btn-icon">🏠</span>
+          <span class="btn-label">房间</span>
+        </button>
+        <button class="bottom-btn" id="btn-social" data-scene="social">
+          <span class="btn-icon">👥</span>
+          <span class="btn-label">社交</span>
+        </button>
+        <button class="bottom-btn" id="btn-more" data-scene="more">
+          <span class="btn-icon">···</span>
+          <span class="btn-label">更多</span>
+        </button>
+      </div>
+
+      <!-- ===== Bag Panel ===== -->
+      <div id="bag-panel" class="panel panel-centered panel-card">
+        <span class="close-btn" id="bag-close">&times;</span>
+        <div class="panel-title">🎒 背包</div>
+        <div class="bag-grid" id="bag-grid">
+          <!-- Example slots (populated by JS) -->
+          <div class="bag-slot">
+            <span class="slot-icon">🌾</span>
+            <span class="slot-name">小麦</span>
+            <span class="slot-count">x12</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🥕</span>
+            <span class="slot-name">胡萝卜</span>
+            <span class="slot-count">x5</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🌽</span>
+            <span class="slot-name">玉米</span>
+            <span class="slot-count">x3</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🪵</span>
+            <span class="slot-name">木材</span>
+            <span class="slot-count">x8</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🧱</span>
+            <span class="slot-name">石材</span>
+            <span class="slot-count">x4</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🪑</span>
+            <span class="slot-name">木椅</span>
+            <span class="slot-count">x1</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🛏️</span>
+            <span class="slot-name">小床</span>
+            <span class="slot-count">x1</span>
+          </div>
+          <div class="bag-slot">
+            <span class="slot-icon">🍞</span>
+            <span class="slot-name">面包</span>
+            <span class="slot-count">x2</span>
+          </div>
+          <!-- Empty slots -->
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+          <div class="bag-slot"></div>
+        </div>
+      </div>
+
+      <!-- ===== Furniture Panel (bottom, for room scene) ===== -->
+      <div id="furniture-panel" class="panel">
+        <div class="panel-card">
+          <div class="furniture-title">选择家具放置</div>
+          <div class="furniture-scroll" id="furniture-list">
+            <div class="furniture-item">
+              <span class="fi-icon">🪑</span>
+              <span class="fi-name">木椅</span>
+              <span class="fi-prosperity">+5 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">🛏️</span>
+              <span class="fi-name">小床</span>
+              <span class="fi-prosperity">+10 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">🪴</span>
+              <span class="fi-name">盆栽</span>
+              <span class="fi-prosperity">+3 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">🛋️</span>
+              <span class="fi-name">沙发</span>
+              <span class="fi-prosperity">+15 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">🗄️</span>
+              <span class="fi-name">柜子</span>
+              <span class="fi-prosperity">+8 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">🖼️</span>
+              <span class="fi-name">挂画</span>
+              <span class="fi-prosperity">+4 🏠</span>
+            </div>
+            <div class="furniture-item">
+              <span class="fi-icon">💡</span>
+              <span class="fi-name">台灯</span>
+              <span class="fi-prosperity">+6 🏠</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Workshop Panel ===== -->
+      <div id="workshop-panel" class="panel panel-centered panel-card">
+        <span class="close-btn" id="workshop-close">&times;</span>
+        <div class="panel-title">🔨 工坊</div>
+
+        <!-- Blueprint Grid -->
+        <div class="blueprint-section-title">可制造蓝图</div>
+        <div class="blueprint-grid" id="blueprint-grid">
+          <div class="blueprint-card">
+            <span class="bp-icon">🪑</span>
+            <span class="bp-name">木椅</span>
+            <span class="bp-recipe">🪵x4</span>
+            <span class="bp-time">⏱ 2分钟</span>
+            <button class="bp-craft-btn">制造</button>
+          </div>
+          <div class="blueprint-card">
+            <span class="bp-icon">🛏️</span>
+            <span class="bp-name">小床</span>
+            <span class="bp-recipe">🪵x6 🧱x2</span>
+            <span class="bp-time">⏱ 5分钟</span>
+            <button class="bp-craft-btn">制造</button>
+          </div>
+          <div class="blueprint-card">
+            <span class="bp-icon">🪴</span>
+            <span class="bp-name">盆栽</span>
+            <span class="bp-recipe">🌾x3 🧱x1</span>
+            <span class="bp-time">⏱ 1分钟</span>
+            <button class="bp-craft-btn">制造</button>
+          </div>
+          <div class="blueprint-card">
+            <span class="bp-icon">🛋️</span>
+            <span class="bp-name">沙发</span>
+            <span class="bp-recipe">🪵x8 🧱x3</span>
+            <span class="bp-time">⏱ 10分钟</span>
+            <button class="bp-craft-btn" disabled>制造</button>
+          </div>
+          <div class="blueprint-card">
+            <span class="bp-icon">🗄️</span>
+            <span class="bp-name">柜子</span>
+            <span class="bp-recipe">🪵x5 🧱x2</span>
+            <span class="bp-time">⏱ 4分钟</span>
+            <button class="bp-craft-btn">制造</button>
+          </div>
+          <div class="blueprint-card">
+            <span class="bp-icon">🍞</span>
+            <span class="bp-name">面包</span>
+            <span class="bp-recipe">🌾x5</span>
+            <span class="bp-time">⏱ 3分钟</span>
+            <button class="bp-craft-btn">制造</button>
+          </div>
+        </div>
+
+        <!-- Craft Queue -->
+        <div class="craft-queue-title">制造队列</div>
+        <div class="craft-queue" id="craft-queue">
+          <div class="craft-slot">
+            <span class="cs-icon">🪑</span>
+            <div class="cs-info">
+              <div class="cs-name">木椅</div>
+              <div class="cs-progress-outer">
+                <div class="cs-progress-inner" style="width: 100%;"></div>
+              </div>
+              <div class="cs-time">已完成</div>
+            </div>
+            <button class="cs-collect-btn">收取</button>
+          </div>
+          <div class="craft-slot">
+            <span class="cs-icon">🛏️</span>
+            <div class="cs-info">
+              <div class="cs-name">小床</div>
+              <div class="cs-progress-outer">
+                <div class="cs-progress-inner" style="width: 45%;"></div>
+              </div>
+              <div class="cs-time">剩余 2:45</div>
+            </div>
+            <button class="cs-collect-btn" disabled>收取</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Order Panel ===== -->
+      <div id="order-panel" class="panel panel-centered panel-card">
+        <span class="close-btn" id="order-close">&times;</span>
+        <div class="panel-title">📋 订单</div>
+        <div class="order-list" id="order-list">
+          <!-- Order 1 -->
+          <div class="order-card">
+            <div class="order-header">
+              <div class="order-npc-avatar">👨‍🌾</div>
+              <div class="order-npc-info">
+                <div class="order-npc-name">老王</div>
+                <div class="order-desc">我需要一些面包来招待客人。</div>
+              </div>
+            </div>
+            <div class="order-requirements">
+              <div class="order-req-title">需求物品：</div>
+              <div class="order-req-list">
+                <div class="order-req-item">
+                  <span class="req-icon">🍞</span>
+                  <span>面包 x2</span>
+                  <span class="req-status done">✔</span>
+                </div>
+                <div class="order-req-item">
+                  <span class="req-icon">🌾</span>
+                  <span>小麦 x5</span>
+                  <span class="req-status done">✔</span>
+                </div>
+              </div>
+            </div>
+            <div class="order-rewards">
+              <span class="order-rewards-label">奖励：</span>
+              <span class="order-reward-item">🪙 50</span>
+              <span class="order-reward-item">⭐ 20exp</span>
+            </div>
+            <button class="order-complete-btn">完成</button>
+          </div>
+
+          <!-- Order 2 -->
+          <div class="order-card">
+            <div class="order-header">
+              <div class="order-npc-avatar">👩‍🍳</div>
+              <div class="order-npc-info">
+                <div class="order-npc-name">小美</div>
+                <div class="order-desc">帮我做一把椅子吧！</div>
+              </div>
+            </div>
+            <div class="order-requirements">
+              <div class="order-req-title">需求物品：</div>
+              <div class="order-req-list">
+                <div class="order-req-item">
+                  <span class="req-icon">🪑</span>
+                  <span>木椅 x1</span>
+                  <span class="req-status done">✔</span>
+                </div>
+                <div class="order-req-item">
+                  <span class="req-icon">🥕</span>
+                  <span>胡萝卜 x3</span>
+                  <span class="req-status missing">✘</span>
+                </div>
+              </div>
+            </div>
+            <div class="order-rewards">
+              <span class="order-rewards-label">奖励：</span>
+              <span class="order-reward-item">🪙 80</span>
+              <span class="order-reward-item">⭐ 35exp</span>
+              <span class="order-reward-item">💎 1</span>
+            </div>
+            <button class="order-complete-btn" disabled>完成</button>
+          </div>
+
+          <!-- Order 3 -->
+          <div class="order-card">
+            <div class="order-header">
+              <div class="order-npc-avatar">🧓</div>
+              <div class="order-npc-info">
+                <div class="order-npc-name">张爷爷</div>
+                <div class="order-desc">能不能帮我种些玉米？</div>
+              </div>
+            </div>
+            <div class="order-requirements">
+              <div class="order-req-title">需求物品：</div>
+              <div class="order-req-list">
+                <div class="order-req-item">
+                  <span class="req-icon">🌽</span>
+                  <span>玉米 x6</span>
+                  <span class="req-status missing">✘</span>
+                </div>
+              </div>
+            </div>
+            <div class="order-rewards">
+              <span class="order-rewards-label">奖励：</span>
+              <span class="order-reward-item">🪙 30</span>
+              <span class="order-reward-item">⭐ 15exp</span>
+              <span class="order-reward-item">🔧 1</span>
+            </div>
+            <button class="order-complete-btn" disabled>完成</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Level-Up Popup ===== -->
+      <div id="levelup-popup" class="panel panel-centered">
+        <div class="panel-card">
+          <div class="levelup-star">🌟</div>
+          <div class="levelup-title" id="levelup-level">升到 Lv.2！</div>
+          <div class="levelup-subtitle">恭喜你，等级提升了！</div>
+          <div class="levelup-unlocks-title">解锁内容：</div>
+          <ul class="levelup-unlocks-list" id="levelup-unlocks">
+            <li>🌽 新作物：玉米</li>
+            <li>🪑 新蓝图：木椅</li>
+            <li>📋 订单系统开放</li>
+          </ul>
+          <button class="levelup-confirm-btn" id="levelup-confirm">确认</button>
+        </div>
+      </div>
+
+    </div><!-- /ui-layer -->
+  </div><!-- /game-container -->
+
+</body>
+</html>
