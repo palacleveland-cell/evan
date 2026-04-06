@@ -73,7 +73,6 @@
       position: absolute;
       top: 52px; left: 8px; right: 8px;
       min-height: 44px;
-      display: flex;
       gap: 8px;
       overflow-x: auto;
       z-index: 12;
